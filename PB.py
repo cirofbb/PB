@@ -1,16 +1,28 @@
 import streamlit as st
 import pandas as pd
+import requests
+from bs4 import BeautifulSoup
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 import io
+from fastapi import FastAPI
+from pydantic import BaseModel
+import threading
+import uvicorn
 
-# Função para carregar o CSV
+app = FastAPI()
+
+# Carregando o CSV
 @st.cache_data
 def load_data():
-    data = pd.read_csv('C:/Users/User/Documents/CDD\PB/2249.xlsx - T  2249.csv')
-    return data
+    data = pd.read_csv('C:/Users/User/Documents/CDD/PB/2249.xlsx - T  2249.csv')
+    data90 = pd.read_csv('C:/Users/User/Documents/CDD/PB/1481.xlsx - Dom-1990-1999.csv')
+    data00 = pd.read_csv('C:/Users/User/Documents/CDD/PB/1481.xlsx - Dom-2000-2009.csv')
+    data10 = pd.read_csv('C:/Users/User/Documents/CDD/PB/1481.xlsx - Dom-2010-2019.csv')
+    data20 = pd.read_csv('C:/Users/User/Documents/CDD/PB/1481.xlsx - Dom-2020-2023.csv')
+    return data, data90, data00, data10, data20
 
-# Função para gerar a nuvem de palavras com cache
+# Gerando a nuvem de palavras com cache
 @st.cache_data
 def generate_wordcloud(text):
     wordcloud = WordCloud(width=800, height=400, background_color='white', 
@@ -19,7 +31,7 @@ def generate_wordcloud(text):
     
     return wordcloud
 
-# Função para carregar conteúdo do arquivo .txt
+# Carregando o conteúdo do arquivo .txt
 @st.cache_data
 def load_txt_file():
     with open('C:\\Users\\User\\Documents\\CDD\\PB\\conteudo_reciclagem.txt', 'r', encoding='utf-8') as file:
@@ -29,10 +41,31 @@ def load_txt_file():
 # Configurando o estado de sessão para armazenar variáveis ao longo da interação
 if 'data' not in st.session_state:
     st.session_state['data'] = None
+if 'data90' not in st.session_state:
+    st.session_state['data90'] = None
+if 'data00' not in st.session_state:
+    st.session_state['data00'] = None
+if 'data10' not in st.session_state:
+    st.session_state['data10'] = None
+if 'data20' not in st.session_state:
+    st.session_state['data20'] = None
 if 'wordcloud' not in st.session_state:
     st.session_state['wordcloud'] = None
 
-# Função para fazer o upload de novos dados CSV
+# Raspando o conteúdo de uma notícia a partir da URL
+def scrape_news(url):
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'lxml')
+    
+    # Identificando os parágrafos principais da notícia
+    paragraphs = soup.find_all('p')
+    
+    # Extraindo o texto dos parágrafos
+    news_text = ' '.join([p.get_text() for p in paragraphs if len(p.get_text()) > 20])
+    
+    return news_text
+
+# Upload de novos dados CSV
 def upload_file():
     uploaded_file = st.file_uploader("Escolha um arquivo CSV para upload", type=["csv"])
     if uploaded_file is not None:
@@ -40,7 +73,7 @@ def upload_file():
         return data
     return None
 
-# Função para permitir o download dos dados modificados
+# Download dos dados modificados
 def download_file(data):
     buffer = io.BytesIO()
     data.to_csv(buffer, index=False)
@@ -51,9 +84,11 @@ menu = st.sidebar.selectbox('Selecione um item:',
                             (
                                     'Página inicial',
                                     'Links úteis',
+                                    'Notícias recentes',
                                     'Tabela de dados',
                                     'Wikipedia',
-                                    'Serviço de download/upload'
+                                    'Serviço de download/upload',
+                                    'Recursos de IA via LLM'
                             ))
 
 if menu == 'Página inicial':
@@ -82,18 +117,74 @@ elif menu == 'Links úteis':
 
         st.markdown("---")
 
+elif menu == 'Notícias recentes':
+     st.subheader('Notícias recentes')
+     st.write('Notícias publicadas recentemente que dão a dimensão do problema do recolhimento e tratamento de resíduos no RJ')
+
+     st.markdown("---")
+     
+     url1 = 'https://vejario.abril.com.br/cidade/menos-de-1-do-lixo-produzido-no-rio-de-janeiro-passa-por-coleta-seletiva'
+     url2 = 'https://www.ecodebate.com.br/2023/04/14/o-rio-de-janeiro-tem-um-dos-piores-indices-de-recuperacao-de-residuos/'
+     url3 = 'https://orlario.com.vc/esg/sustentabilidade/producao-diaria-de-lixo-no-rio-de-janeiro-chega-a-17-mil-toneladas/'
+
+     news1 = scrape_news(url1)
+     news2 = scrape_news(url2)
+     news3 = scrape_news(url3)
+     
+     st.subheader("1. Menos de 1% do lixo produzido no Rio passa por coleta seletiva")
+     st.write(news1)
+     st.markdown(f"[Leia mais]({url1})")
+
+     st.markdown("---")
+     
+     st.subheader("2. O Rio de Janeiro tem um dos piores índices de recuperação de resíduos")
+     st.write(news2)
+     st.markdown(f"[Leia mais]({url2})")
+     
+     st.markdown("---")
+     
+     st.subheader("3. Produção diária de lixo no Rio de Janeiro chega a 17 mil toneladas")
+     st.write(news3)
+     st.markdown(f"[Leia mais]({url3})")
+
+
 elif menu == 'Tabela de dados':
         st.subheader("Total do lixo recolhido através de coleta seletiva e total recuperado por tipo de material no Município do Rio de Janeiro entre 2002-2022")
         st.write("Fonte: https://www.data.rio/documents/4b74be782816403f9fda15df584d01f2/about")
         if st.session_state['data'] is None:
-                st.session_state['data'] = load_data()
+                (st.session_state['data'], st.session_state['data90'], 
+                 st.session_state['data00'], st.session_state['data10'], 
+                 st.session_state['data20']) = load_data()
         st.dataframe(st.session_state['data'])
+
+        st.markdown("---")
+
+        st.subheader('Total do lixo domiciliar (em toneladas) coletado por ano, segundo  Áreas de Planejamento (AP), Regiões de Planejamento (RP) e  Regiões Administrativas (RA) -  Município do Rio de Janeiro -  1990 -2023')
+        st.write("Fonte: https://www.data.rio/documents/PCRJ::-total-do-lixo-domiciliar-e-p%C3%BAblico-coletados-por-ano-segundo-%C3%A1reas-de-planejamento-ap-regi%C3%B5es-de-planejamento-rp-e-regi%C3%B5es-administrativas-ra-no-munic%C3%ADpio-do-rio-de-janeiro-entre-1990-2023/about")
+        st.write('Período: 1990-1999')
+        st.dataframe(st.session_state['data90'])
+
+        st.markdown("---")
+
+        st.write('Período: 2000-2009')
+        st.dataframe(st.session_state['data00'])
+
+        st.markdown("---")
+
+        st.write('Período: 2010-2019')
+        st.dataframe(st.session_state['data10'])
+
+        st.markdown("---")
+
+        st.write('Período: 2020-2023')
+        st.dataframe(st.session_state['data20'])
+
     
 elif menu == 'Wikipedia':
     with open('C:\\Users\\User\\Documents\\CDD\\PB\\conteudo_reciclagem.txt', 'r', encoding='utf-8') as file:
         content = file.read()
 
-    # Exibir o conteúdo no Streamlit
+    # Exibindo o conteúdo no Streamlit
     st.subheader("Conteúdo extraído da página sobre Reciclagem")
     if st.session_state['wordcloud'] is None:
         content = load_txt_file()
@@ -101,14 +192,12 @@ elif menu == 'Wikipedia':
         st.write(content[:500] + "...")
     st.write(content[:482] + "...")
 
-    # Gerar e exibir a nuvem de palavras
+    # Gerando e exibir a nuvem de palavras
     wordcloud = generate_wordcloud(content)
     st.subheader("Nuvem de Palavras")
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.imshow(st.session_state['wordcloud'], interpolation='bilinear')
     ax.axis('off')
-
-    # Mostrar a nuvem de palavras no Streamlit
     st.pyplot(fig)
 
 elif menu == 'Serviço de download/upload':
@@ -132,7 +221,7 @@ elif menu == 'Serviço de download/upload':
         # Concatenar os dados existentes com os dados enviados pelo usuário
         data = pd.concat([data, uploaded_data], ignore_index=True)
 
-    # Exibir os dados atualizados
+    # Exibindo os dados atualizados
       st.subheader("Dados Atualizados")
       st.dataframe(data)
 
@@ -144,3 +233,7 @@ elif menu == 'Serviço de download/upload':
            file_name="dados_atualizados.csv",
            mime="text/csv"
            )
+      
+elif menu == 'Recursos de IA via LLM':
+     st.title('Recursos de IA via LLM')
+     st.write('Aguardem a cena dos próximos capítulos...')

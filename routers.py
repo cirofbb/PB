@@ -14,7 +14,7 @@ async def chat(body: ChatModel) -> ChatResponseModel:
         persona = "Você é um assistente amigável especialista em questões de reciclagem e tratamento de resíduos."
         prompt = f"{persona}\nUsuário: {body.message}\nAssistente:"
         
-        response = model.generate_content(prompt=prompt)
+        response = model.generate_content(prompt)
         
         if not response or not response.text:
             raise HTTPException(

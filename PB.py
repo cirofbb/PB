@@ -7,15 +7,11 @@ import matplotlib.pyplot as plt
 import io
 from fastapi import FastAPI
 from pydantic import BaseModel
-import threading
-import uvicorn
-
-app = FastAPI()
 
 # Carregando o CSV
 @st.cache_data
 def load_data():
-    data = pd.read_csv('C:/Users/User/Documents/CDD/PB/2249.xlsx - T  2249.csv')
+    data = pd.read_csv('lixo.csv')
     data90 = pd.read_csv('C:/Users/User/Documents/CDD/PB/1481.xlsx - Dom-1990-1999.csv')
     data00 = pd.read_csv('C:/Users/User/Documents/CDD/PB/1481.xlsx - Dom-2000-2009.csv')
     data10 = pd.read_csv('C:/Users/User/Documents/CDD/PB/1481.xlsx - Dom-2010-2019.csv')
@@ -235,5 +231,24 @@ elif menu == 'Serviço de download/upload':
            )
       
 elif menu == 'Recursos de IA via LLM':
-     st.title('Recursos de IA via LLM')
-     st.write('Aguardem a cena dos próximos capítulos...')
+    st.title('Recursos de IA via LLM')
+
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+        
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+        
+    if prompt := st.chat_input("Tire aqui sua dúvida sobre reciclagem:"):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+        with st.chat_message("assistant"):
+            with st.spinner("Estou pensando"):
+                req = requests.post("http://localhost:8000/chat/", 
+                                    json={"message": prompt} )
+                response = req.json()
+                st.markdown(response["response"])
+        st.session_state.messages.append({"role": "assistant",
+                                        "content": response["response"]})
